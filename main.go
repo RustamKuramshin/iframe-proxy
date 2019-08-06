@@ -19,11 +19,19 @@ var targetUrl string
 var proxySrcUrl string
 
 func main() {
-
 	router := mux.NewRouter()
+
 	router.HandleFunc("/pageproxy", pageProxyHandle).Methods("GET")
 	router.HandleFunc("/resourceproxy", resourceProxyHandle).Methods("GET")
 	router.HandleFunc("/proxy", proxyHandle).Methods("GET")
+
+	router.PathPrefix("/js").HandlerFunc(proxyRootHandle)
+	router.PathPrefix("/css").HandlerFunc(proxyRootHandle)
+	router.PathPrefix("/meta").HandlerFunc(proxyRootHandle)
+	router.PathPrefix("/controllers").HandlerFunc(proxyRootHandle)
+	router.PathPrefix("/third-party").HandlerFunc(proxyRootHandle)
+	router.PathPrefix("/modules").HandlerFunc(proxyRootHandle)
+
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./static/"))))
 
 	log.Println("Server starting")
@@ -34,7 +42,7 @@ func main() {
 func pageProxyHandle(res http.ResponseWriter, req *http.Request) {
 
 	queryParams := req.URL.Query()
-	targetUrl := queryParams["url"][0]
+	targetUrl = queryParams["url"][0]
 	proxyUrl, _ := url.Parse(queryParams["url"][0])
 
 	director := func(req *http.Request) {
@@ -119,12 +127,23 @@ func resourceProxyHandle(res http.ResponseWriter, req *http.Request) {
 	req.URL.Scheme = proxyUrl.Scheme
 	req.RequestURI = proxyUrl.Path
 
+	proxy.ModifyResponse = func(proxyRes *http.Response) error {
+		proxyRes.Header.Del("X-Frame-Options")
+		log.Println("Return to client")
+		if body, err := httputil.DumpResponse(proxyRes, true); err == nil {
+			fmt.Println(string(body))
+		}
+		return nil
+	}
+
 	proxy.ServeHTTP(res, req)
 }
 
 func proxyHandle(res http.ResponseWriter, req *http.Request) {
 
 	queryParams := req.URL.Query()
+	targetUrl = queryParams["url"][0]
+	fmt.Println(targetUrl)
 	proxyUrl, _ := url.Parse(queryParams["url"][0])
 
 	proxy := httputil.NewSingleHostReverseProxy(&url.URL{
@@ -140,6 +159,49 @@ func proxyHandle(res http.ResponseWriter, req *http.Request) {
 
 	proxy.ModifyResponse = func(proxyRes *http.Response) error {
 		proxyRes.Header.Del("X-Frame-Options")
+		log.Println("Return to client")
+		if body, err := httputil.DumpResponse(proxyRes, true); err == nil {
+			fmt.Println(string(body))
+		}
+		return nil
+	}
+
+	proxy.ServeHTTP(res, req)
+}
+
+func proxyRootHandle(res http.ResponseWriter, req *http.Request) {
+
+	proxyUrl, _ := url.Parse(targetUrl)
+
+	director := func(req *http.Request) {
+		req.Host = proxyUrl.Host
+		req.URL.Host = proxyUrl.Host
+		req.URL.Path = proxyUrl.Path + req.URL.Path
+		req.URL.Scheme = proxyUrl.Scheme
+		req.RequestURI = proxyUrl.Path + req.RequestURI
+	}
+
+	proxy := &httputil.ReverseProxy{
+		Director: director,
+		Transport: &http.Transport{
+			Proxy: func(req *http.Request) (*url.URL, error) {
+				return http.ProxyFromEnvironment(req)
+			},
+			Dial: func(network, addr string) (net.Conn, error) {
+				conn, err := (&net.Dialer{
+					Timeout:   30 * time.Second,
+					KeepAlive: 3 * time.Second,
+				}).Dial(network, addr)
+				if err != nil {
+					println("Error during DIAL:", err.Error())
+				}
+				return conn, err
+			},
+			TLSHandshakeTimeout: 10 * time.Second,
+		},
+	}
+
+	proxy.ModifyResponse = func(proxyRes *http.Response) error {
 		log.Println("Return to client")
 		if body, err := httputil.DumpResponse(proxyRes, true); err == nil {
 			fmt.Println(string(body))
