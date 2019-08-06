@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Test iframe proxy</title>
+    <script>
+        window.onload = function () {
+            document.getElementById("proxy_url").value = "http://idc-staging.tradingview.com:8071/admin/";
+            document.getElementById("open_admin_panel").onclick = function () {
+
+                let proxyUrl = document.getElementById("proxy_url").value;
+                let iframe = document.getElementById("iframe");
+
+                let parser = document.createElement('a');
+                parser.href = proxyUrl;
+
+                // let iframeDoc = iframe.contentWindow.document;
+                // let base = iframeDoc.getElementById("base") ? iframeDoc.getElementById("base") : iframeDoc.createElement("base");
+                // base.href = parser.protocol + '//' + parser.hostname + (parser.port ? ':' + parser.port : '');
+                // base.id = "base";
+                // iframeDoc.head.append(base);
+
+                let iframeProxyUrl = location.protocol + '//' + location.hostname + (location.port ? ':' + location.port : '')
+                    + '/proxy?url=' + proxyUrl;
+                console.log("iframe src = " + iframeProxyUrl);
+
+                iframe.src = iframeProxyUrl;
+            };
+            let iframe = document.getElementById("iframe");
+            iframe.width = 2000;
+            iframe.height = 400;
+        }
+    </script>
+</head>
+<body>
+<p>Test iframe proxy</p>
+<div>
+    <input type="text" size="90" id="proxy_url">
+    <button type="button" id="open_admin_panel">Open admin panel</button>
+</div>
+<p>iframe for admin panel</p>
+<iframe src="/" id="iframe" sandbox="allow-same-origin allow-scripts "></iframe>
+</body>
+</html>
