@@ -6,21 +6,17 @@
     <script>
         window.onload = function () {
             document.getElementById("admin_url").value = "http://idc-staging.tradingview.com:8071/admin/";
+
             document.getElementById("open_admin_panel").onclick = function () {
 
                 let proxyUrl = document.getElementById("admin_url").value;
                 let iframe = document.getElementById("iframe");
 
-                let parser = document.createElement('a');
-                parser.href = proxyUrl;
-
-                let iframeProxyUrl = location.protocol + '//' + location.hostname + (location.port ? ':' + location.port : '')
+                iframe.src = location.protocol + '//' + location.hostname + (location.port ? ':' + location.port : '')
                     + '/pageproxy?url=' + proxyUrl;
-
-                iframe.src = iframeProxyUrl;
             };
             let iframe = document.getElementById("iframe");
-            iframe.width = 2000;
+            iframe.width = 1900;
             iframe.height = 400;
         }
     </script>

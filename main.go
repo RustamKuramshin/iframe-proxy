@@ -22,6 +22,7 @@ func main() {
 
 	router.HandleFunc("/pageproxy", pageProxyHandle).Methods("GET")
 	router.HandleFunc("/resourceproxy", resourceProxyHandle).Methods("GET")
+
 	router.HandleFunc("/proxy", proxyHandle).Methods("GET")
 
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./static/"))))
@@ -38,12 +39,11 @@ func pageProxyHandle(res http.ResponseWriter, req *http.Request) {
 	proxyUrl, _ := url.Parse(queryParams["url"][0])
 
 	proxy := NewReversProxy()
-	director := func(req *http.Request) {
+	proxy.Director = func(req *http.Request) {
 		req.URL.Scheme = proxyUrl.Scheme
 		req.URL.Host = proxyUrl.Host
 		req.URL.Path = proxyUrl.Path
 	}
-	proxy.Director = director
 	proxy.ModifyResponse = func(proxyRes *http.Response) error {
 
 		proxyRes.Header.Del("X-Frame-Options")
@@ -70,7 +70,7 @@ func pageProxyHandle(res http.ResponseWriter, req *http.Request) {
 		proxyRes.Body = ioutil.NopCloser(bytes.NewReader(bodyByte))
 		proxyRes.ContentLength = int64(len(bodyByte))
 		proxyRes.Header.Set("Content-Length", strconv.Itoa(len(bodyByte)))
-		go printResponse(proxyRes)
+		printResponse(proxyRes)
 		return nil
 	}
 
@@ -85,10 +85,16 @@ func resourceProxyHandle(res http.ResponseWriter, req *http.Request) {
 	proxyUrl, _ := url.Parse(queryParams["url"][0])
 
 	proxy := NewReversProxy()
-	proxy.Director = MakeStandartDirector(req, proxyUrl)
+	proxy.Director = func(req *http.Request) {
+		req.Host = proxyUrl.Host
+		req.URL.Host = proxyUrl.Host
+		req.URL.Path = proxyUrl.Path
+		req.URL.Scheme = proxyUrl.Scheme
+		req.RequestURI = proxyUrl.Path
+	}
 	proxy.ModifyResponse = func(proxyRes *http.Response) error {
 		proxyRes.Header.Del("X-Frame-Options")
-		go printResponse(proxyRes)
+		printResponse(proxyRes)
 		return nil
 	}
 
@@ -101,7 +107,13 @@ func proxyHandle(res http.ResponseWriter, req *http.Request) {
 	proxyUrl, _ := url.Parse(queryParams["url"][0])
 
 	proxy := NewReversProxy()
-	proxy.Director = MakeStandartDirector(req, proxyUrl)
+	proxy.Director = func(req *http.Request) {
+		req.Host = proxyUrl.Host
+		req.URL.Host = proxyUrl.Host
+		req.URL.Path = proxyUrl.Path
+		req.URL.Scheme = proxyUrl.Scheme
+		req.RequestURI = proxyUrl.Path
+	}
 	proxy.ModifyResponse = func(proxyRes *http.Response) error {
 		proxyRes.Header.Del("X-Frame-Options")
 		printResponse(proxyRes)
@@ -138,15 +150,5 @@ func printResponse(res *http.Response) {
 	log.Println("HTTP response")
 	if body, err := httputil.DumpResponse(res, true); err == nil {
 		fmt.Println(string(body))
-	}
-}
-
-func MakeStandartDirector(httpreq *http.Request, proxyUrl *url.URL) func(r *http.Request) {
-	return func(req *http.Request) {
-		httpreq.Host = proxyUrl.Host
-		httpreq.URL.Host = proxyUrl.Host
-		httpreq.URL.Path = proxyUrl.Path
-		httpreq.URL.Scheme = proxyUrl.Scheme
-		httpreq.RequestURI = proxyUrl.Path
 	}
 }

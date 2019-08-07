@@ -17,13 +17,11 @@
                 // let iframeProxyUrl = location.protocol + '//' + location.hostname + (location.port ? ':' + location.port : '')
                 //     + '/proxy?url=' + proxyUrl;
 
-                let iframeProxyUrl = location.protocol + '//' + "dashboard.tv" + (location.port ? ':' + location.port : '')
+                iframe.src = location.protocol + '//' + "dashboard.tv" + (location.port ? ':' + location.port : '')
                     + '/proxy?url=' + proxyUrl;
-
-                iframe.src = iframeProxyUrl;
             };
             let iframe = document.getElementById("iframe");
-            iframe.width = 2000;
+            iframe.width = 1900;
             iframe.height = 400;
         }
     </script>
