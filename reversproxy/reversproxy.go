@@ -10,11 +10,10 @@ import (
 	"time"
 )
 
-func NewReversProxy(proxyUrl *url.URL, proxyResponseModifier func(r *http.Response) error) *httputil.ReverseProxy {
+func NewReversProxyForTargetUrl(proxyUrl *url.URL) *httputil.ReverseProxy {
 
 	return &httputil.ReverseProxy{
-		Director:       NewStandartDirector(proxyUrl),
-		ModifyResponse: proxyResponseModifier,
+		Director: NewStandartDirector(proxyUrl),
 		Transport: &http.Transport{
 			Proxy: func(req *http.Request) (*url.URL, error) {
 				return http.ProxyFromEnvironment(req)
@@ -32,20 +31,6 @@ func NewReversProxy(proxyUrl *url.URL, proxyResponseModifier func(r *http.Respon
 			TLSHandshakeTimeout: 10 * time.Second,
 		},
 	}
-
-}
-
-func NewStandartDirector(proxyUrl *url.URL) func(r *http.Request) {
-
-	var standartDirector = func(req *http.Request) {
-		req.Host = proxyUrl.Host
-		req.URL.Host = proxyUrl.Host
-		req.URL.Path = proxyUrl.Path
-		req.URL.Scheme = proxyUrl.Scheme
-		req.RequestURI = proxyUrl.Path
-	}
-
-	return standartDirector
 
 }
 
