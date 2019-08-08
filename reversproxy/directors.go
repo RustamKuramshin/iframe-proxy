@@ -32,14 +32,16 @@ func NewResourcesDirector(proxyUrl *url.URL, resPath string) func(r *http.Reques
 
 }
 
-func NewXhrDirector(proxyUrl *url.URL) func(r *http.Request) {
+func NewXhrDirector(proxyUrl *url.URL, resPath string) func(r *http.Request) {
 
-	var resourcesDirector = func(req *http.Request) {
+	var xhrDirector = func(req *http.Request) {
 		req.Host = proxyUrl.Host
 		req.URL.Host = proxyUrl.Host
+		req.URL.Path = resPath
 		req.URL.Scheme = proxyUrl.Scheme
+		req.RequestURI = resPath
 	}
 
-	return resourcesDirector
+	return xhrDirector
 
 }

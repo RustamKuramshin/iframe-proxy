@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-func NewReversProxyForTargetUrl(proxyUrl *url.URL) *httputil.ReverseProxy {
+func NewReversProxyFromTargetUrl(proxyUrl *url.URL) *httputil.ReverseProxy {
 
 	return &httputil.ReverseProxy{
 		Director: NewStandartDirector(proxyUrl),
