@@ -45,3 +45,19 @@ func NewXhrDirector(proxyUrl *url.URL, resPath string) func(r *http.Request) {
 	return xhrDirector
 
 }
+
+func NewTransparentXhrDirector(proxyUrl *url.URL, resPath string) func(r *http.Request) {
+
+	var transparentXhrDirector = func(req *http.Request) {
+		req.Host = proxyUrl.Host
+		req.URL.Host = proxyUrl.Host
+		req.URL.Path = resPath
+		req.URL.Scheme = proxyUrl.Scheme
+		req.RequestURI = resPath
+
+		req.Header.Del("Referer")
+	}
+
+	return transparentXhrDirector
+
+}

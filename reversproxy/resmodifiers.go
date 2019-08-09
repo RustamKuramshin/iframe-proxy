@@ -55,10 +55,50 @@ func NewModifyResponseChangeXhrBehavior() func(r *http.Response) error {
 		doc, err := goquery.NewDocumentFromReader(res.Body)
 
 		if err == nil {
+
+			injectJs := `<script>
+
+    // Для решения существующей проблемы с относительными путями в страницах админ-панелей,
+    // которые прогружаются в iframe, был придуман механизм инжектирования этого скрипта на 
+    // проксе-сервере в документ возварщаемый в iframe.
+    (function (open) {
+        XMLHttpRequest.prototype.open = function (method, url, async, user, pass) {
+            
+            // console.log("PROXY DEBUG :: " + window.location.href);
+            // let parseUrl = document.createElement('a');
+            // parseUrl.href = window.location.href;
+            //
+            // const urlParams = new URLSearchParams(parseUrl.search);
+            // const targerUrl = urlParams.get('url');
+            //
+            // let parseTargerUrl = document.createElement('a');
+            // parseTargerUrl.href = targerUrl;
+
+            console.log("PROXY DEBUG :: url BEFORE - " + url);
+
+            let newUrl = url.replace("..", "");
+
+            if (newUrl === "pages/dashboard.html") {
+                newUrl = "/admin/" + newUrl;
+            }
+            if (newUrl !== "/stat?groupBy=0") {
+                newUrl = "/xhrproxy" + newUrl;
+            } else {
+                //newUrl = parseTargerUrl.protocol + '//' + parseTargerUrl.hostname + (parseTargerUrl.port ? ':' + parseTargerUrl.port : '') + newUrl;
+                newUrl = "/transparentxhrproxy" + newUrl;
+            }
+
+            console.log("PROXY DEBUG :: url AFTER - " + newUrl);
+
+            open.call(this, method, newUrl, async, user, pass);
+        };
+    })(XMLHttpRequest.prototype.open);
+    
+</script>`
+
 			//doc.Find("head").PrependHtml(
 			//	"<script>!function(i){XMLHttpRequest.prototype.open=function(t,e,o,n,s){this.addEventListener(\"readystatechange\",function(){4==this.readyState&&console.log(this.status)},!1),i.call(this,t,e,o,n,s),this.setRequestHeader(\"X-Mark\",\"to-root\")}}(XMLHttpRequest.prototype.open);</script>")
-			doc.Find("head").PrependHtml(
-				"<script>!function(n){XMLHttpRequest.prototype.open=function(t,e,o,p,s){n.call(this,t,\"/xhrproxy\"+e,o,p,s),this.setRequestHeader(\"X-Mark\",\"to-root\")}}(XMLHttpRequest.prototype.open);</script>")
+			doc.Find("head").PrependHtml(injectJs)
 		}
 
 		html, _ := doc.Html()

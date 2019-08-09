@@ -1,7 +1,6 @@
 package reversproxy
 
 import (
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -20,12 +19,24 @@ func TransparentProxyHandle(res http.ResponseWriter, req *http.Request) {
 	proxy.ServeHTTP(res, req)
 }
 
-func IframeProxyHandle(res http.ResponseWriter, req *http.Request) {
+func TransparentXhrProxyHandle(res http.ResponseWriter, req *http.Request) {
 
-	log.Println("iframeProxyHandle")
+	resPath := strings.Replace(req.RequestURI, "/transparentxhrproxy", "", 1)
+	urlFromHeader := req.Header.Get("Referer")
+	if targetUrl, err := url.Parse(urlFromHeader); err == nil {
+		if urlQueryParam, ok := targetUrl.Query()["url"]; ok {
+			proxy := NewReversProxyFromTargetUrl(getTargetUrlFromUrlString(urlQueryParam[0]))
+			proxy.Director = NewTransparentXhrDirector(getTargetUrlFromUrlString(urlQueryParam[0]), resPath)
+			proxy.ServeHTTP(res, req)
+		}
+	}
+}
+
+func IframeProxyHandle(res http.ResponseWriter, req *http.Request) {
 
 	if urlQueryParam, ok := req.URL.Query()["url"]; ok {
 		proxy := NewReversProxyFromTargetUrl(getTargetUrlFromUrlString(urlQueryParam[0]))
+		proxy.Director = NewStandartDirector(getTargetUrlFromUrlString(urlQueryParam[0]))
 		proxy.ModifyResponse = NewModifyResponseChangeXhrBehavior()
 		proxy.ServeHTTP(res, req)
 	} else {
@@ -42,8 +53,6 @@ func IframeProxyHandle(res http.ResponseWriter, req *http.Request) {
 }
 
 func XhrProxyHandle(res http.ResponseWriter, req *http.Request) {
-
-	log.Println("xhrProxyHandle")
 
 	urlFromHeader := req.Header.Get("Referer")
 	resPath := strings.Replace(req.RequestURI, "/xhrproxy", "", 1)
