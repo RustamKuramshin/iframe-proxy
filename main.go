@@ -21,6 +21,7 @@ func main() {
 
 	router.PathPrefix("/iframeproxy/").Methods("GET").HandlerFunc(reversproxy.IframeProxyHandle)
 	router.PathPrefix("/xhrproxy").Methods("GET").HandlerFunc(reversproxy.XhrProxyHandle)
+	router.PathPrefix("/transparentxhrproxy").Methods("GET").HandlerFunc(reversproxy.TransparentXhrProxyHandle)
 
 	//router.HandleFunc("/proxy", transparentProxyHandle).Methods("GET")
 
