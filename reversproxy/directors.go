@@ -5,59 +5,38 @@ import (
 	"net/url"
 )
 
-func NewStandartDirector(proxyUrl *url.URL) func(r *http.Request) {
+// NewPlusPathDirector - director, который контструирует out-запрос из пркоси и добавляет к path общий префикс админ-панели.
+// Напрмиер, "/admin/ ..."
+func NewPlusPathDirector(targetUrl *url.URL, resource string) (director func(r *http.Request)) {
 
-	var standartDirector = func(req *http.Request) {
-		req.Host = proxyUrl.Host
-		req.URL.Host = proxyUrl.Host
-		req.URL.Path = proxyUrl.Path
-		req.URL.Scheme = proxyUrl.Scheme
-		req.RequestURI = proxyUrl.Path
+	director = func(req *http.Request) {
+
+		req.URL.Scheme = targetUrl.Scheme
+
+		req.Host = targetUrl.Host
+		req.URL.Host = targetUrl.Host
+
+		req.URL.Path = targetUrl.Path + resource
+		req.RequestURI = targetUrl.Path + resource
 	}
 
-	return standartDirector
+	return
 }
 
-func NewResourcesDirector(proxyUrl *url.URL, resPath string) func(r *http.Request) {
+// NewResourceDirector - director, который контструирует out-запрос из пркоси,
+// прибавляя к path только запрашиваемы ресурс.
+func NewResourceDirector(targetUrl *url.URL, resource string) (director func(r *http.Request)) {
 
-	var resourcesDirector = func(req *http.Request) {
-		req.Host = proxyUrl.Host
-		req.URL.Host = proxyUrl.Host
-		req.URL.Path = proxyUrl.Path + resPath
-		req.URL.Scheme = proxyUrl.Scheme
-		req.RequestURI = proxyUrl.Path + resPath
+	director = func(req *http.Request) {
+
+		req.URL.Scheme = targetUrl.Scheme
+
+		req.Host = targetUrl.Host
+		req.URL.Host = targetUrl.Host
+
+		req.URL.Path = resource
+		req.RequestURI = resource
 	}
 
-	return resourcesDirector
-
-}
-
-func NewXhrDirector(proxyUrl *url.URL, resPath string) func(r *http.Request) {
-
-	var xhrDirector = func(req *http.Request) {
-		req.Host = proxyUrl.Host
-		req.URL.Host = proxyUrl.Host
-		req.URL.Path = resPath
-		req.URL.Scheme = proxyUrl.Scheme
-		req.RequestURI = resPath
-	}
-
-	return xhrDirector
-
-}
-
-func NewTransparentXhrDirector(proxyUrl *url.URL, resPath string) func(r *http.Request) {
-
-	var transparentXhrDirector = func(req *http.Request) {
-		req.Host = proxyUrl.Host
-		req.URL.Host = proxyUrl.Host
-		req.URL.Path = resPath
-		req.URL.Scheme = proxyUrl.Scheme
-		req.RequestURI = resPath
-
-		req.Header.Del("Referer")
-	}
-
-	return transparentXhrDirector
-
+	return
 }

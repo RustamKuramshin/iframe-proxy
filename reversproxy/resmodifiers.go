@@ -1,13 +1,14 @@
 package reversproxy
 
 import (
-	"bytes"
+	"fmt"
 	"github.com/PuerkitoBio/goquery"
-	"io/ioutil"
 	"net/http"
-	"strconv"
 )
 
+// NewModifyResponseOverwriteRelPaths - modifier ответа реверс-прокси.
+// Изменяет тело http-ответа (html документ).
+// Дописывает в src и href атрибуты тегов script и link пути для проксирования запросов ресурсов.
 func NewModifyResponseOverwriteRelPaths(targetUrl string) func(r *http.Response) error {
 
 	var modifyResponseOverwriteRelPaths = func(res *http.Response) error {
@@ -32,21 +33,26 @@ func NewModifyResponseOverwriteRelPaths(targetUrl string) func(r *http.Response)
 		}
 
 		html, _ := doc.Html()
-		bodyByte := []byte(html)
-		res.Body = ioutil.NopCloser(bytes.NewReader(bodyByte))
-		res.ContentLength = int64(len(bodyByte))
-		res.Header.Set("Content-Length", strconv.Itoa(len(bodyByte)))
-		PrintResponse(res)
+		SetHTTPResponseBody(res, html)
 		return nil
 	}
 
 	return modifyResponseOverwriteRelPaths
-
 }
 
-func NewModifyResponseChangeXhrBehavior() func(r *http.Response) error {
+// NewModifyResponseChangeXhrAndWSConnBehavior - modifier ответа реверс-прокси.
+// Изменяет тело http-ответа (html документ).
+// Инжектирует в html js-скрипты, которые изменяют базовое поведение XHR-зарпосов и
+// подключение websocket.
+func NewModifyResponseChangeXhrAndWSConnBehavior(urlhash string, targetUrl string) func(r *http.Response) error {
 
 	var modifyResponseChangeXhrBehavior = func(res *http.Response) error {
+
+		switch res.StatusCode {
+		case http.StatusNotFound, http.StatusBadGateway:
+			SetHTTPResponseBody(res, fmt.Sprintf("Не удалось загрузить страницу по адресу: %v", targetUrl))
+			return nil
+		}
 
 		res.Header.Del("X-Frame-Options")
 
@@ -56,70 +62,86 @@ func NewModifyResponseChangeXhrBehavior() func(r *http.Response) error {
 
 		if err == nil {
 
-			injectJs := `<script>
-
+			jsInjectWSandXhrInterceptor := fmt.Sprintf(`<script>
     // Для решения существующей проблемы с относительными путями в страницах админ-панелей,
-    // которые прогружаются в iframe, был придуман механизм инжектирования этого скрипта на 
+    // которые загружаются в iframe, был придуман механизм инжектирования этого скрипта на
     // проксе-сервере в документ возварщаемый в iframe.
-    (function (open) {
-        XMLHttpRequest.prototype.open = function (method, url, async, user, pass) {
-            
-            // console.log("PROXY DEBUG :: " + window.location.href);
-            // let parseUrl = document.createElement('a');
-            // parseUrl.href = window.location.href;
-            //
-            // const urlParams = new URLSearchParams(parseUrl.search);
-            // const targerUrl = urlParams.get('url');
-            //
-            // let parseTargerUrl = document.createElement('a');
-            // parseTargerUrl.href = targerUrl;
-
-            console.log("PROXY DEBUG :: url BEFORE - " + url);
-
-            let newUrl = url.replace("..", "");
-
-            if (newUrl === "pages/dashboard.html") {
-                newUrl = "/admin/" + newUrl;
-            }
-            if (newUrl !== "/stat?groupBy=0") {
-                newUrl = "/xhrproxy" + newUrl;
-            } else {
-                //newUrl = parseTargerUrl.protocol + '//' + parseTargerUrl.hostname + (parseTargerUrl.port ? ':' + parseTargerUrl.port : '') + newUrl;
-                newUrl = "/transparentxhrproxy" + newUrl;
-            }
-
-            console.log("PROXY DEBUG :: url AFTER - " + newUrl);
-
-            open.call(this, method, newUrl, async, user, pass);
-        };
-    })(XMLHttpRequest.prototype.open);
     
-</script>`
+    //WebSocket interceptor
+    var _WS = WebSocket;
+    WebSocket = function(url, protocols) {
+        let urlHash = "%v";
+        let WSObject;
+        
+        let wsProtocol = window.location.protocol == "https:" ? "wss" : "ws";
+        let newUrl = wsProtocol + "://" + location.host + "/wsproxy/" + urlHash + "/?wsurl=" + url;
+        
+        this.url = newUrl;
+        this.protocols = protocols;
+        if (!this.protocols) { 
+            WSObject = new _WS(newUrl) 
+        } else { 
+            WSObject = new _WS(newUrl, protocols)
+        }
+        return WSObject;
+    };
 
-			//doc.Find("head").PrependHtml(
-			//	"<script>!function(i){XMLHttpRequest.prototype.open=function(t,e,o,n,s){this.addEventListener(\"readystatechange\",function(){4==this.readyState&&console.log(this.status)},!1),i.call(this,t,e,o,n,s),this.setRequestHeader(\"X-Mark\",\"to-root\")}}(XMLHttpRequest.prototype.open);</script>")
-			doc.Find("head").PrependHtml(injectJs)
+   //XHR interceptor
+   (function (open) {
+       XMLHttpRequest.prototype.open = function (method, url, async, user, pass) {
+
+            //console.log("PROXY DEBUG :: url BEFORE - " + url);
+           
+            let urlHash = "%v";
+           
+            // UDF BEGIN
+            let newUrl = url.replace("..", "");
+            
+            if (/^pages/i.test(newUrl) || /^templates/i.test(newUrl)){
+               newUrl = "/admin/" + newUrl;
+            }
+            // UDF END
+            
+            // ALL
+            newUrl = "/xhrproxy/" + urlHash + newUrl;
+            // ALL
+
+            //console.log("PROXY DEBUG :: url AFTER - " + newUrl);
+
+           open.call(this, method, newUrl, async, user, pass);
+           this.setRequestHeader("X-Target-Url", urlHash)
+       };
+   })(XMLHttpRequest.prototype.open);</script>`, urlhash, urlhash)
+
+			doc.Find("head").PrependHtml(jsInjectWSandXhrInterceptor)
+
+			jsInjectUrlPar := fmt.Sprintf(`<script>
+           let body = document.querySelector("body");
+           let par = document.createElement("p");
+           par.textContent = "%v";
+           body.insertBefore(par, body.firstChild);</script>`, targetUrl)
+
+			doc.Find("body").PrependHtml(jsInjectUrlPar)
 		}
 
 		html, _ := doc.Html()
-		bodyByte := []byte(html)
-		res.Body = ioutil.NopCloser(bytes.NewReader(bodyByte))
-		res.ContentLength = int64(len(bodyByte))
-		res.Header.Set("Content-Length", strconv.Itoa(len(bodyByte)))
-		PrintResponse(res)
+
+		SetHTTPResponseBody(res, html)
+
 		return nil
 	}
 
 	return modifyResponseChangeXhrBehavior
 }
 
+// NewModifyResponseCutXFrame - modifier ответа реверс-прокси.
+// Изменяет тело http-ответа (html документ).
+// Просто вырезает заголовок, запрещающий открытие документа в iframe.
 func NewModifyResponseCutXFrame() func(r *http.Response) error {
 
 	var cutXFrame = func(res *http.Response) error {
 		res.Header.Del("X-Frame-Options")
-		PrintResponse(res)
 		return nil
 	}
-
 	return cutXFrame
 }
